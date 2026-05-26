@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="佐賀市空き家相談">
+<title>佐賀市空き家相談チャットボット</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --header-h: 60px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --grad: linear-gradient(135deg, #4A4E8E 0%, #6B5EA8 50%, #8B6BB5 100%);
+  }
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: #EEF0F3;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* ヘッダー */
+  .header {
+    height: var(--header-h);
+    background: var(--grad);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    padding-top: env(safe-area-inset-top, 0px);
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(74,78,142,0.3);
+  }
+  .header-title { color: white; font-size: 16px; font-weight: 600; letter-spacing: 0.03em; }
+  .header-sub { color: rgba(255,255,255,0.75); font-size: 11px; margin-top: 2px; }
+  .header-left { flex: 1; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .btn-icon {
+    background: rgba(255,255,255,0.18); border: none; color: white;
+    font-size: 13px; padding: 6px 12px; border-radius: 20px; cursor: pointer;
+    white-space: nowrap; transition: background 0.2s;
+  }
+  .btn-icon:hover { background: rgba(255,255,255,0.28); }
+  .btn-icon:disabled { opacity: 0.5; cursor: default; }
+  /* ステータスバー */
+  .status-bar {
+    background: #f0f4ff; border-bottom: 1px solid #dde3f0;
+    padding: 5px 16px; font-size: 11px; color: #6B7AA8;
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4CAF50; flex-shrink: 0; }
+  .status-dot.loading { background: #FF9800; animation: pulse 1s infinite; }
+  .status-dot.error { background: #F44336; }
+  /* カテゴリバッジ */
+  .category-badge {
+    margin-left: auto; font-size: 10px; padding: 2px 8px;
+    border-radius: 10px; background: rgba(106,94,168,0.15); color: #6B5EA8;
+    white-space: nowrap; transition: all 0.3s;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  /* テンプレートボタン */
+  .template-wrap {
+    background: white; border-bottom: 1px solid #E0E4EC;
+    display: flex; align-items: center; padding: 8px 12px; gap: 8px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; flex-shrink: 0; min-height: 50px;
+  }
+  .template-wrap::-webkit-scrollbar { display: none; }
+  .template-btn {
+    white-space: nowrap; background: #F0F2FF;
+    border: 1.5px solid #B8BEE8; color: #4A4E8E;
+    font-size: 13px; padding: 6px 14px; border-radius: 20px;
+    cursor: pointer; flex-shrink: 0; transition: all 0.18s; font-family: inherit;
+  }
+  .template-btn:hover { background: #4A4E8E; color: white; border-color: #4A4E8E; }
+  .template-btn:active { transform: scale(0.96); }
+  /* チャットエリア */
+  .chat-area {
+    flex: 1; overflow-y: auto; padding: 16px 12px;
+    display: flex; flex-direction: column; gap: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .msg-row { display: flex; align-items: flex-start; gap: 8px; animation: fadeIn 0.25s ease forwards; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .msg-row.user { flex-direction: row-reverse; }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--grad);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0; margin-top: 2px;
+  }
+  .bubble {
+    max-width: 72%; padding: 10px 14px; border-radius: 18px;
+    font-size: 14px; line-height: 1.65; word-break: break-word;
+  }
+  .bubble.bot {
+    background: white; color: #1A1A2E;
+    border-radius: 4px 18px 18px 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .bubble.user {
+    background: var(--grad);
+    color: white; border-radius: 18px 4px 18px 18px;
+  }
+  .bubble.error { background: #FFF0F0; color: #C0392B; border: 1px solid #FFCCCC; border-radius: 4px 18px 18px 18px; }
+  /* タイピングインジケーター */
+  .typing-indicator { display: flex; gap: 4px; align-items: center; padding: 12px 16px; }
+  .typing-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #B0B8D0;
+    animation: bounce 1.2s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.18s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+  /* 日付ラベル */
+  .date-divider { text-align: center; font-size: 11px; color: #9AA0B8; padding: 4px 0; }
+  /* 入力エリア */
+  .input-area {
+    background: white; border-top: 1px solid #E0E4EC;
+    padding: 10px 12px; padding-bottom: calc(10px + var(--safe-bottom));
+    display: flex; align-items: flex-end; gap: 8px; flex-shrink: 0;
+  }
+  .input-box {
+    flex: 1; min-height: 40px; max-height: 120px;
+    background: #F4F6FA; border: 1.5px solid #DDE3F0; border-radius: 22px;
+    padding: 10px 16px; font-size: 14px; font-family: inherit; color: #1A1A2E;
+    resize: none; outline: none; overflow-y: auto; line-height: 1.5; transition: border-color 0.2s;
+  }
+  .input-box:focus { border-color: #6B5EA8; }
+  .input-box::placeholder { color: #A0A8C0; }
+  .send-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--grad);
+    border: none; color: white; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .send-btn:hover { transform: scale(1.06); }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">🏠 佐賀市空き家相談</div>
+    <div class="header-sub">AIチャットボット</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn-icon" id="btn-update" onclick="updateData()">🔄 更新</button>
+    <button class="btn-icon" onclick="resetChat()">💬 リセット</button>
+  </div>
+</div>
+
+<div class="status-bar" id="status-bar">
+  <div class="status-dot loading" id="status-dot"></div>
+  <span id="status-text">📄 読み込み中...</span>
+  <span class="category-badge" id="category-badge" style="display:none"></span>
+</div>
+
+<div class="template-wrap">
+  <button class="template-btn" onclick="sendTemplate('空き家バンクについて教えてください')">空き家バンク</button>
+  <button class="template-btn" onclick="sendTemplate('補助金・支援制度を教えてください')">補助金・支援</button>
+  <button class="template-btn" onclick="sendTemplate('空き家の売却について相談したいです')">売却相談</button>
+  <button class="template-btn" onclick="sendTemplate('相続した空き家の手続きを教えてください')">相続・手続き</button>
+  <button class="template-btn" onclick="sendTemplate('空き家の解体について知りたいです')">解体について</button>
+  <button class="template-btn" onclick="sendTemplate('空き家の管理・維持について教えてください')">管理・維持</button>
+  <button class="template-btn" onclick="sendTemplate('相談窓口を教えてください')">相談窓口</button>
+</div>
+
+<div class="chat-area" id="chat-area">
+  <div class="date-divider" id="today-label"></div>
+</div>
+
+<div class="input-area">
+  <textarea class="input-box" id="input-box" placeholder="ご質問をどうぞ..." rows="1"
+    onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+  <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled>➤</button>
+</div>
+
+<script>
+// ==========================================
+// ストレージキー
+// ==========================================
+const KEY_COMMON   = 'akiya_doc_common';
+const KEY_CAT_A    = 'akiya_doc_cat_a';
+const KEY_CAT_B    = 'akiya_doc_cat_b';
+const KEY_CAT_C    = 'akiya_doc_cat_c';
+const KEY_CAT_D    = 'akiya_doc_cat_d';
+const KEY_CAT_E    = 'akiya_doc_cat_e';
+const KEY_CHAT     = 'akiya_chat_history';
+const KEY_DATE     = 'akiya_last_updated';
+
+// ==========================================
+// カテゴリ判定キーワードマップ
+// ==========================================
+const CATEGORY_MAP = [
+  {
+    id: 'a',
+    label: '解体・管理・放置リスク',
+    keywords: [
+      '解体', '壊す', 'こわす', '危ない', 'あぶない', '罰則', '税金', '更地', '補助金',
+      '特定空き家', '管理不全', '強制', '放置', '草木', '倒壊', '近隣', '指定', '固定資産',
+      '勧告', '命令', '申請', '助成', '解体費', 'ブロック塀', '不法投棄'
+    ]
+  },
+  {
+    id: 'b',
+    label: '売却・買取・査定',
+    keywords: [
+      '売る', '売却', '売り', '買取', '買い取り', '査定', '相場', '仲介', '賃貸', '貸す',
+      '不動産', '価格', 'いくら', '値段', 'ソロン', 'イエステーション', '媒介', '契約',
+      '引き渡し', '更地', '古家', '土地', '売れる', '売れない', '流れ', 'スケジュール',
+      'インスペクション', '民泊', 'シェアリング', 'airbnb', '活用'
+    ]
+  },
+  {
+    id: 'c',
+    label: '相続・名義・手続き',
+    keywords: [
+      '相続', '名義', '登記', '遺産', '遺言', '共有', '兄弟', '親族', '亡くなった',
+      '司法書士', '税理士', '弁護士', '成年後見', '認知症', '施設', '放棄', '相続税',
+      '名義変更', '戸籍', '数次相続', '相続人', '共有名義', '子ども', '実家', '家族',
+      '遠方', '説得', '後見', '調停', '分割', '特例', '控除'
+    ]
+  },
+  {
+    id: 'd',
+    label: 'リフォーム・活用・空き家バンク',
+    keywords: [
+      'リフォーム', '改修', '住む', '空き家バンク', '登録', '移住', '定住', 'バンク',
+      '民泊', '借りる', '借りたい', '賃貸', '貸したい', 'saga-yama', 'さがし山ぐらし',
+      'フラット35', 'ローン', '北部中山間', '富士町', '三瀬村', '大和町', '活用',
+      '改修費', '撤去', '不要物', '住みたい', '修繕'
+    ]
+  },
+  {
+    id: 'e',
+    label: '荷物・遺品整理',
+    keywords: [
+      '荷物', '片付け', '遺品', '処分', '引っ越し', '残置物', 'ゴミ', '仏壇',
+      '業者', '遺品整理', '不用品', '家具', '家電', '貴重品', '骨', '遺骨',
+      '片づけ', '撤去', 'ゴミ屋敷', '特殊清掃', '引越'
+    ]
+  }
+];
+
+// ==========================================
+// 状態管理
+// ==========================================
+let commonDoc    = '';
+let categoryDocs = {};  // { a: '...', b: '...' }
+let chatHistory  = [];
+let isLoading    = false;
+let currentCategory = null;
+
+// ==========================================
+// 初期化
+// ==========================================
+window.addEventListener('load', () => {
+  setTodayLabel();
+  loadCommonDoc();
+  showGreeting();
+  document.getElementById('input-box').addEventListener('input', () => {
+    const val = document.getElementById('input-box').value.trim();
+    document.getElementById('send-btn').disabled = val.length === 0 || isLoading;
+  });
+});
+
+function setTodayLabel() {
+  const now = new Date();
+  document.getElementById('today-label').textContent =
+    `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+}
+
+// ==========================================
+// 共通資料の読み込み
+// ==========================================
+async function loadCommonDoc() {
+  const saved = localStorage.getItem(KEY_COMMON);
+  const savedDate = localStorage.getItem(KEY_DATE);
+  if (saved) {
+    commonDoc = saved;
+    setStatus('ok', `データ読み込み済み${savedDate ? '（' + savedDate + ' 時点）' : ''}`);
+  } else {
+    await fetchDoc('common');
+  }
+}
+
+// ==========================================
+// ドキュメント取得（共通 or カテゴリ）
+// ==========================================
+async function fetchDoc(category) {
+  const isCommon = category === 'common';
+  if (isCommon) {
+    setStatus('loading', 'データを取得中...');
+    document.getElementById('btn-update').disabled = true;
+  }
+
+  try {
+    const res = await fetch(`/api/getDoc?category=${category}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    if (!text || text.startsWith('データの読み込みに失敗')) throw new Error(text);
+
+    if (isCommon) {
+      commonDoc = text;
+      const now = new Date();
+      const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+      localStorage.setItem(KEY_COMMON, text);
+      localStorage.setItem(KEY_DATE, dateStr);
+      setStatus('ok', `最新データを取得しました（${dateStr}）`);
+    } else {
+      categoryDocs[category] = text;
+      localStorage.setItem(`akiya_doc_cat_${category}`, text);
+    }
+    return text;
+  } catch (e) {
+    if (isCommon) {
+      setStatus('error', 'データ取得に失敗しました。🔄更新を押してください。');
+    }
+    return null;
+  } finally {
+    if (isCommon) document.getElementById('btn-update').disabled = false;
+  }
+}
+
+// ==========================================
+// カテゴリ判定（キーワードマッチ）
+// ==========================================
+function detectCategory(text) {
+  const lower = text.toLowerCase();
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const cat of CATEGORY_MAP) {
+    const score = cat.keywords.filter(kw => lower.includes(kw)).length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = cat;
+    }
+  }
+  return bestScore > 0 ? bestMatch : null;
+}
+
+// ==========================================
+// カテゴリ資料の取得（キャッシュ優先）
+// ==========================================
+async function getCategoryDoc(catId) {
+  if (categoryDocs[catId]) return categoryDocs[catId];
+  const cached = localStorage.getItem(`akiya_doc_cat_${catId}`);
+  if (cached) {
+    categoryDocs[catId] = cached;
+    return cached;
+  }
+  return await fetchDoc(catId);
+}
+
+// ==========================================
+// 更新ボタン
+// ==========================================
+function updateData() {
+  // 全キャッシュをクリア
+  localStorage.removeItem(KEY_COMMON);
+  localStorage.removeItem(KEY_DATE);
+  ['a','b','c','d','e'].forEach(id => {
+    localStorage.removeItem(`akiya_doc_cat_${id}`);
+  });
+  categoryDocs = {};
+  loadCommonDoc();
+}
+
+// ==========================================
+// ステータスバー更新
+// ==========================================
+function setStatus(type, text) {
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot' + (type === 'loading' ? ' loading' : type === 'error' ? ' error' : '');
+  document.getElementById('status-text').textContent = text;
+}
+
+function showCategoryBadge(cat) {
+  const badge = document.getElementById('category-badge');
+  if (cat) {
+    badge.textContent = `📂 ${cat.label}`;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ==========================================
+// 会話の表示
+// ==========================================
+function showGreeting() {
+  const saved = localStorage.getItem(KEY_CHAT);
+  if (saved) {
+    chatHistory = JSON.parse(saved);
+    chatHistory.forEach(msg => appendBubble(msg.role === 'user' ? 'user' : 'bot', msg.content));
+  } else {
+    appendBubble('bot', 'こんにちは！佐賀市空き家相談チャットボットです🏠\n空き家に関することなら、なんでもお気軽にご相談ください。\n今日はどのようなことでお困りですか？');
+  }
+  scrollToBottom();
+}
+
+function resetChat() {
+  if (!confirm('会話をリセットしますか？')) return;
+  chatHistory = [];
+  localStorage.removeItem(KEY_CHAT);
+  const chatArea = document.getElementById('chat-area');
+  chatArea.innerHTML = '<div class="date-divider" id="today-label"></div>';
+  setTodayLabel();
+  showCategoryBadge(null);
+  showGreeting();
+}
+
+// ==========================================
+// メッセージ送信
+// ==========================================
+function sendTemplate(text) {
+  document.getElementById('input-box').value = text;
+  autoResize(document.getElementById('input-box'));
+  sendMessage();
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+async function sendMessage() {
+  const inputBox = document.getElementById('input-box');
+  const text = inputBox.value.trim();
+  if (!text || isLoading) return;
+  inputBox.value = '';
+  autoResize(inputBox);
+  document.getElementById('send-btn').disabled = true;
+
+  appendBubble('user', text);
+  chatHistory.push({ role: 'user', content: text });
+  scrollToMessage('last-user');
+
+  // ① カテゴリ判定
+  const detectedCat = detectCategory(text);
+  currentCategory = detectedCat;
+  showCategoryBadge(detectedCat);
+
+  // ② 該当カテゴリ資料を取得（キャッシュ優先）
+  let categoryDoc = null;
+  if (detectedCat) {
+    setStatus('loading', `${detectedCat.label}の詳細データを確認中...`);
+    categoryDoc = await getCategoryDoc(detectedCat.id);
+    setStatus('ok', `参照中：共通資料 ＋ ${detectedCat.label}`);
+  } else {
+    setStatus('ok', '参照中：共通資料');
+  }
+
+  const typingId = showTyping();
+  isLoading = true;
+
+  try {
+    const reply = await callChatAPI(categoryDoc);
+    hideTyping(typingId);
+    appendBubble('bot', reply);
+    chatHistory.push({ role: 'assistant', content: reply });
+    if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+    localStorage.setItem(KEY_CHAT, JSON.stringify(chatHistory));
+    scrollToMessage('last-user');
+  } catch (e) {
+    hideTyping(typingId);
+    appendBubble('error', 'エラーが発生しました。しばらくしてから再度お試しください。\n' + e.message);
+    setStatus('error', 'エラーが発生しました');
+    scrollToBottom();
+  } finally {
+    isLoading = false;
+    document.getElementById('send-btn').disabled =
+      document.getElementById('input-box').value.trim().length === 0;
+  }
+}
+
+// ==========================================
+// Claude API呼び出し（RAG）
+// ==========================================
+async function callChatAPI(categoryDoc) {
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: chatHistory.slice(-20),
+      commonDoc: commonDoc,
+      categoryDoc: categoryDoc || null
+    })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `サーバーエラー (${response.status})`);
+  }
+  const data = await response.json();
+  if (data.error) throw new Error(data.error);
+  return data.reply;
+}
+
+// ==========================================
+// UI ユーティリティ
+// ==========================================
+function scrollToMessage(target) {
+  const chatArea = document.getElementById('chat-area');
+  if (target === 'last-user') {
+    const userMessages = chatArea.querySelectorAll('.msg-row.user');
+    if (userMessages.length > 0) {
+      const lastUserMsg = userMessages[userMessages.length - 1];
+      const msgTop = lastUserMsg.offsetTop - chatArea.offsetTop;
+      chatArea.scrollTo({ top: msgTop - 16, behavior: 'smooth' });
+    }
+  }
+}
+
+function appendBubble(type, text) {
+  const chatArea = document.getElementById('chat-area');
+  const row = document.createElement('div');
+  row.className = 'msg-row' + (type === 'user' ? ' user' : '');
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ' + (type === 'error' ? 'error' : type === 'user' ? 'user' : 'bot');
+  bubble.innerHTML = cleanMarkdown(text).replace(/\n/g, '<br>');
+  if (type !== 'user') {
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = '🏠';
+    row.appendChild(avatar);
+  }
+  row.appendChild(bubble);
+  chatArea.appendChild(row);
+}
+
+function cleanMarkdown(text) {
+  return text
+    .replace(/#{1,6}\s/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`{1,3}(.+?)`{1,3}/g, '$1')
+    .replace(/^\s*[-*+]\s/gm, '・')
+    .replace(/^\s*\d+\.\s/gm, '・')
+    .trim();
+}
+
+function showTyping() {
+  const chatArea = document.getElementById('chat-area');
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+  const id = 'typing-' + Date.now();
+  row.id = id;
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = '🏠';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble bot';
+  bubble.innerHTML = '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  chatArea.appendChild(row);
+  scrollToBottom();
+  return id;
+}
+
+function hideTyping(id) { const el = document.getElementById(id); if (el) el.remove(); }
+function scrollToBottom() { const c = document.getElementById('chat-area'); c.scrollTop = c.scrollHeight; }
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  document.getElementById('send-btn').disabled = el.value.trim().length === 0 || isLoading;
+}
+</script>
+</body>
+</html>
