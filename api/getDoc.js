@@ -29,8 +29,9 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  // ?category=common または ?category=a など
-  const category = req.query.category || 'common';
+  // URLからcategoryパラメータを取得
+  const { searchParams } = new URL(req.url, `https://${req.headers.host}`);
+  const category = searchParams.get('category') || 'common';
   const docId = DOC_IDS[category];
 
   if (!docId) {
